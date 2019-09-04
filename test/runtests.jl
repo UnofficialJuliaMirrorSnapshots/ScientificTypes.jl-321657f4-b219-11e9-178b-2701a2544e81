@@ -57,12 +57,12 @@ end
 
 @testset "Images" begin
     black = RGB(0, 0, 0)
-    color_image = fill(black, (10, 10))
-    @test scitype(color_image) == ColorImage
+    color_image = fill(black, (10, 20))
+    @test scitype(color_image) == ColorImage{10,20}
 
     white = Gray(1.0)
-    gray_image = fill(white, (10, 10))
-    @test scitype(gray_image) == GrayImage
+    gray_image = fill(white, (10, 20))
+    @test scitype(gray_image) == GrayImage{10,20}
 end
 
 @testset "Type coercion" begin
@@ -133,9 +133,6 @@ end
     # non-missing Any vectors
     @test coerce(Continuous, Any[4, 7]) == [4.0, 7.0]
     @test coerce(Count, Any[4.0, 7.0]) == [4, 7]
-
-    # corner case of using dictionary of types on an abstract vector:
-    @test scitype_union(coerce(Dict(:x=>Count), [1.0, 2.0])) <:  Count
 
 end
 

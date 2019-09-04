@@ -1,4 +1,3 @@
-
 ## ScientificTypes
 
 A light-weight julia interface for implementing conventions about the
@@ -168,8 +167,11 @@ scitype(Xfixed) <: Table(Union{Missing,Continuous}, Finite)
   export the alias `Scientific = Union{Missing, Found}`.
 
 - `Finite{N}`, `Muliticlass{N}` and `OrderedFactor{N}` are all
-  parameterized by an integer `N`. We export the alias `Binary =
-  Finite{2}`.
+  parameterized by the number of levels `N`. We export the alias
+  `Binary = Finite{2}`.
+  
+- `Image{W,H}`, `GrayImage{W,H}` and `ColorImage{W,H}` are all
+  parameterized by the image width and height dimensions, `(W, H)`.
 
 - The function `scitype` has the fallback value `Unknown`.
 
@@ -425,7 +427,7 @@ scitype(X) = Table{Union{scitype(c1), scitype(c2), ..., scitype(cn)}}
 
 With this definition, we can perform common type checks associated
 with tables. For example, to check that each column of `X` has an
-element scitype subtying either `Continuous` or `Finite` (but not
+element scitype subtyping either `Continuous` or `Finite` (but not
 `Union{Continuous, Finite}`!), we check
 
 ```julia
@@ -510,8 +512,8 @@ scientific types:
 `CategoricalString`               | `Multiclass{N}` where `N = nlevels(x)`, provided `x.pool.ordered == false`  | CategoricalArrays
 `CategoricalValue`                | `OrderedFactor{N}` where `N = nlevels(x)`, provided `x.pool.ordered == true`| CategoricalArrays
 `CategoricalString`               | `OrderedFactor{N}` where `N = nlevels(x)` provided `x.pool.ordered == true` | CategoricalArrays
-`AbstractArray{<:Gray,2}`         | `GrayImage`                                                                 | ColorTypes
-`AbstractArrray{<:AbstractRGB,2}` | `ColorImage`                                                                | ColorTypes
+`AbstractArray{<:Gray,2}`         | `GrayImage{W,H}` where `(W, H) = size(x)`                                   | ColorTypes
+`AbstractArrray{<:AbstractRGB,2}` | `ColorImage{W,H}` where `(W, H) = size(x)`                                  | ColorTypes
 any table type `T` supported by Tables.jl | `Table{K}` where `K=Union{column_scitypes...}`                      | Tables
 
 Here `nlevels(x) = length(levels(x.pool))`.
