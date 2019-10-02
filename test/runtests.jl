@@ -1,9 +1,13 @@
-# using Revise
 using Test
 using ScientificTypes
 using CategoricalArrays
 using Tables
 using ColorTypes
+using Random
+
+const S = ScientificTypes
+
+include("basic_tests.jl")
 
 @testset "Finite and Infinite" begin
     cv = categorical([:x, :y])
@@ -14,24 +18,6 @@ using ColorTypes
     @test scitype((4, 4.5, c, u, "X")) ==
     Tuple{Count,Continuous,Multiclass{2},
           OrderedFactor{2},Unknown}
-
-end
-
-@testset "Tables" begin
-
-    X = (x=rand(5), y=rand(Int, 5),
-         z=categorical(collect("asdfa")), w=rand(5))
-    s = schema(X)
-    @test s.scitypes == (Continuous, Count, Multiclass{4}, Continuous)
-    @test s.types == (Float64, Int64, CategoricalValue{Char,UInt32}, Float64)
-    @test s.nrows == 5
-
-    @test_throws ArgumentError schema([:x, :y])
-
-    t = scitype(X)
-    @test t <: ScientificTypes.Table(Continuous, Finite, Count)
-    @test t <: ScientificTypes.Table(Infinite, Multiclass)
-    @test !(t <: ScientificTypes.Table(Continuous, Union{Missing, Count}))
 
 end
 
@@ -143,3 +129,13 @@ end
 
 end
 
+@testset "coerce R->OF (mlj)" begin
+    v = [0.1, 0.2, 0.2, 0.3, missing, 0.1]
+    w = [0.1, 0.2, 0.2, 0.3, 0.1]
+    cv = coerce(v, OrderedFactor)
+    cw = coerce(w, OrderedFactor)
+    @test all(skipmissing(unique(cv)) .== [0.1, 0.2, 0.3])
+    @test all(unique(cw) .== [0.1, 0.2, 0.3])
+end
+
+include("autotype.jl")
