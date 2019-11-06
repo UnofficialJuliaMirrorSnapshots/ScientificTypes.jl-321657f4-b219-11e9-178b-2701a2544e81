@@ -6,7 +6,7 @@ export Binary, Table, ColorImage, GrayImage
 export scitype, scitype_union, scitypes, coerce, schema
 export mlj
 
-using Requires, InteractiveUtils
+using Requires, InteractiveUtils, CategoricalArrays, ColorTypes, Tables
 
 # ## FOR DEFINING SCITYPES ON OBJECTS DETECTED USING TRAITS
 
@@ -133,15 +133,77 @@ See also `scitype`.
 scitype_union(A) = reduce((a,b)->Union{a,b}, (scitype(el) for el in A))
 
 
-# ## SCITYPES OF TUPLES AND ARRAYS
+# ## SCITYPES OF TUPLES
 
 scitype(t::Tuple, ::Val) = Tuple{scitype.(t)...}
 
-# The following fallback can be quite slow. Individual conventions
-# will usually be able to find more perfomant overloadings of this
-# method:
-scitype(A::B, ::Val) where {T,N,B<:AbstractArray{T,N}} =
+
+# ## SCITYPES OF ARRAYS
+
+"""
+    ScientificTypes.Scitype(::Type, C::Val)
+
+Method for implementers of a conventions to enable speed-up of scitype
+evaluations for large arrays.
+
+In general, one cannot infer the scitype of an object of type
+`AbstractArray{T, N}` from the machine type alone. For, example, this
+never holds in the *mlj* convention for a categorical array, or in the
+following examples: `X=Any[1, 2, 3]` and `X=Union{Missing,Int64}[1, 2,
+3]`.
+
+Nevertheless, for some *restricted* machine types `U`, the statement
+`type(X) == AbstractArray{T, N}` for some `T<:U` already allows one
+deduce that `scitype(X) = AbstractArray{S,N}`, where `S` is determined
+by `U` alone. This is the case in the *mlj* convention, for example,
+if `U = Integer`, in which case `S = Count`. If one explicitly declares
+
+    ScientificTypes.Scitype(::Type{<:U}, ::Val{:convention}) = S
+
+in such cases, then ScientificTypes ensures a considerable speed-up in
+the computation of `scitype(X)`. There is also a partial speed-up for
+the case that `T <: Union{U, Missing}`.
+
+For example, in *mlj* one has `Scitype(::Type{<:Integer}) = Count`.
+
+"""
+Scitype(::Type, C::Val) = nothing
+Scitype(::Type{Any}, C::Val) = nothing # b/s `Any` isa `Union{<:Any, Missing}`
+
+# For all such `T` we can also get almost the same speed-up in the case that
+# `T` is replaced by `Union{T, Missing}`, which we detect by wrapping
+# the answer:
+
+Scitype(MT::Type{Union{T, Missing}}, C::Val) where T = Val(Scitype(T, C))
+
+# For example, in *mlj* convention, Scitype(::Integer) = Count
+
+const Arr{T,N} = AbstractArray{T,N}
+
+# the dispatcher:
+scitype(A::Arr{T}, C) where T = scitype(A, C, Scitype(T, C))
+
+# the slow fallback:
+scitype(A::Arr{<:Any,N}, ::Val, ::Nothing) where N =
     AbstractArray{scitype_union(A),N}
+
+# the speed-up:
+scitype(::Arr{<:Any,N}, ::Val, S) where N = Arr{S,N}
+
+# partial speed-up for missing types, because broadcast is faster than
+# computing scitype_union:
+function scitype(A::Arr{<:Any,N}, C::Val, ::Val{S}) where {N,S}
+    if S == nothing
+        return scitype(A, C, S)
+    else
+        Atight = broadcast(identity, A)
+        if typeof(A) == typeof(Atight)
+            return Arr{Union{S,Missing},N}
+        else
+            return Arr{S,N}
+        end
+    end
+end
 
 
 # ## STUB FOR COERCE METHOD
@@ -200,13 +262,18 @@ schema(X, ::Val{:other}) =
 
 ## ACTIVATE DEFAULT CONVENTION
 
-# and include code not requring optional dependencies:
+# and include code not requiring optional dependencies:
 
 mlj()
 include("conventions/mlj/mlj.jl")
 
+include("tables.jl")
+include("autotype.jl")
+include("conventions/mlj/finite.jl")
+include("conventions/mlj/images.jl")
 
 ## FOR LOADING OPTIONAL DEPENDENCIES
+
 
 function __init__()
 
@@ -214,15 +281,15 @@ function __init__()
     @require(AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c",
              include("tree.jl"))
 
-    # the scitype and schema of tabular data:
-    @require(Tables="bd369af6-aec1-5ad0-b16a-f7cc5008161c",
-             (include("tables.jl"); include("autotype.jl")))
+    # # the scitype and schema of tabular data:
+    # @require(Tables="bd369af6-aec1-5ad0-b16a-f7cc5008161c",
+    #          (include("tables.jl"); include("autotype.jl")))
 
-    # :mlj conventions requiring external packages
-    @require(CategoricalArrays="324d7699-5711-5eae-9e2f-1d82baa6b597",
-             include("conventions/mlj/finite.jl"))
-    @require(ColorTypes="3da002f7-5984-5a60-b8a6-cbb66c0b333f",
-             include("conventions/mlj/images.jl"))
+    # # external packages for the :mlj convention:
+    # @require(CategoricalArrays="324d7699-5711-5eae-9e2f-1d82baa6b597",
+    # include("conventions/mlj/finite.jl"))
+    # @require(ColorTypes="3da002f7-5984-5a60-b8a6-cbb66c0b333f",
+    #          include("conventions/mlj/images.jl"))
 
 end
 

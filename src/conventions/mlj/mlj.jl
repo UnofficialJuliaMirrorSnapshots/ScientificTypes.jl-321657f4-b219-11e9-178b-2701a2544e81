@@ -6,18 +6,11 @@ _coerce_missing_warn(T) =
           "Coerced to Union{Missing,$T} instead. "
 
 
-## PERFORMANT SCITYPES FOR ARRAYS
+# ## IMPLEMENT PERFORMANCE BOOSTING FOR ARRAYS
 
-const A{T,N} = AbstractArray{T,N}
+Scitype(::Type{<:Integer}, ::Val{:mlj}) = Count
+Scitype(::Type{<:AbstractFloat}, ::Val{:mlj}) = Continuous
 
-scitype(::B, ::Val{:mlj}) where {N,B<:A{<:AbstractFloat,N}} =
-    A{Continuous,N}
-scitype(::B, ::Val{:mlj}) where {N,B<:A{Union{<:AbstractFloat,Missing},N}} =
-    A{Union{Continuous,Missing},N}
-scitype(::B, ::Val{:mlj}) where {N,B<:A{<:Integer,N}} =
-    A{Count,N}
-scitype(::B, ::Val{:mlj}) where {N,B<:A{Union{<:Integer,Missing},N}} =
-    A{Union{Count,Missing},N}
 
 
 ## COERCE VECTOR TO CONTINUOUS
@@ -44,13 +37,13 @@ A warning is issued if missing values are encountered, unless
 See also [`scitype`](@ref), [`scitype_union`](@ref).
 
 """
-function coerce(y::AbstractVector{<:Union{Missing,AbstractFloat}}, T::Type{Continuous};
+function coerce(y::AbstractVector{<:Union{Missing,AbstractFloat}}, T::Type{<:Union{Missing,Continuous}};
                 verbosity=1)
     eltype(y) >: Missing && verbosity > 0 && _coerce_missing_warn(T)
     return y
 end
 
-function coerce(y::AbstractVector{<:Union{Missing,Real}}, T::Type{Continuous}; verbosity=1)
+function coerce(y::AbstractVector{<:Union{Missing,Real}}, T::Type{<:Union{Missing,Continuous}}; verbosity=1)
     eltype(y) >: Missing && verbosity > 0 && _coerce_missing_warn(T)
     return float(y)
 end
@@ -61,7 +54,7 @@ end
 # as a String, it will error.
 # - if at one point it encounters a Char it will **not** error but return a float
 # corresponding to the Char (e.g. 65.0  for 'A') whence the warning
-function coerce(y::AbstractVector, T::Type{Continuous}; verbosity=1)
+function coerce(y::AbstractVector, T::Type{<:Union{Missing,Continuous}}; verbosity=1)
     has_missings = findfirst(ismissing, y) !== nothing
     has_missings && verbosity > 0 && _coerce_missing_warn(T)
     has_chars    = findfirst(e->isa(e,Char), y) !== nothing
@@ -78,20 +71,20 @@ _int(x::Integer) = x
 _int(x) = Int(x) # may throw InexactError
 
 # no-op case
-function coerce(y::AbstractVector{<:Union{Missing,Integer}}, T::Type{Count}; verbosity=1)
+function coerce(y::AbstractVector{<:Union{Missing,Integer}}, T::Type{<:Union{Missing,Count}}; verbosity=1)
     eltype(y) >: Missing && verbosity > 0 && _coerce_missing_warn(T)
     return y
 end
 
 # NOTE: this will error if it encounters things like 1.5 or 1//2 (InexactError)
-function coerce(y::AbstractVector{<:Union{Missing,Real}}, T::Type{Count}; verbosity=1)
+function coerce(y::AbstractVector{<:Union{Missing,Real}}, T::Type{<:Union{Missing,Count}}; verbosity=1)
     eltype(y) >: Missing && verbosity > 0 && _coerce_missing_warn(T)
     return _int.(y)
 end
 
 # NOTE: case where the data may have been badly encoded and resulted in an Any[] vector
 # a user should proceed with caution here (see comment earlier)
-function coerce(y::AbstractVector, T::Type{Count}; verbosity=1)
+function coerce(y::AbstractVector, T::Type{<:Union{Missing,Count}}; verbosity=1)
     has_missings = findfirst(ismissing, y) !== nothing
     has_missings && verbosity > 0 && _coerce_missing_warn(T)
     has_chars    = findfirst(e->isa(e,Char), y) !== nothing
